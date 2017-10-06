@@ -210,18 +210,24 @@ class GitWrapper(GitWrapperI):
 
         return results
 
-    def were_files_changed(self, code_dependencies, path_factory, changed_files):
-        code_files, code_dirs = self.separate_dependency_files_and_dirs(code_dependencies)
-        code_files_set = set([path_factory.path(x).dvc for x in code_files])
-        for changed_file in changed_files:
-            if changed_file in code_files_set:
+    def were_files_changed(self, code_dependencies):
+        for entry in code_dependencies:
+            commit = GitWrapper.get_target_commit(entry['name'])
+            if commit != entry['id']:
                 return True
 
-            for dir in code_dirs:
-                if changed_file.startswith(dir):
-                    return True
-
         return False
+#        code_files, code_dirs = self.separate_dependency_files_and_dirs(code_dependencies)
+#        code_files_set = set([path_factory.path(x).dvc for x in code_files])
+#        for changed_file in changed_files:
+#            if changed_file in code_files_set:
+#                return True
+#
+#            for dir in code_dirs:
+#                if changed_file.startswith(dir):
+#                    return True
+#
+#        return False
 
     @staticmethod
     def get_changed_files(target_commit):
@@ -252,6 +258,19 @@ class GitWrapper(GitWrapperI):
             return commit.strip('"')
         except ExecutorError:
             return None
+
+    @staticmethod
+    def get_files_history(flist):
+        hlist = []
+        for fname in flist:
+            # OLOLO FIXME UGLY
+            if isinstance(fname, tuple):
+                entry = {"name" : fname[1], "id" : GitWrapper.get_target_commit(fname[0])}
+            else:
+                entry = {"name" : fname, "id" : GitWrapper.get_target_commit(fname)}
+            hlist.append(entry)
+
+        return hlist
 
     def separate_dependency_files_and_dirs(self, code_dependencies):
         code_files = []

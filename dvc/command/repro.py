@@ -78,15 +78,8 @@ class CmdRepro(CmdRun):
 
         for data_item in data_item_list:
             try:
-                target_commit = self.git.get_target_commit(data_item.data.relative)
-                if target_commit is None:
-                    msg = 'Data item "{}" cannot be reproduced: cannot obtain commit hashsum'
-                    Logger.warn(msg.format(data_item.data.relative))
-                    continue
-
-                globally_changed_files = self.git.get_changed_files(target_commit)
                 changed_files = set()
-                change = ReproChange(data_item, self, globally_changed_files, recursive, force)
+                change = ReproChange(data_item, self, recursive, force)
                 if change.reproduce(changed_files):
                     changed = True
                     Logger.info(u'Data item "{}" was reproduced.'.format(
@@ -111,11 +104,10 @@ class CmdRepro(CmdRun):
 
 
 class ReproChange(object):
-    def __init__(self, data_item, cmd_obj, globally_changed_files, recursive, force):
+    def __init__(self, data_item, cmd_obj, recursive, force):
         self._data_item = data_item
         self.git = cmd_obj.git
         self._cmd_obj = cmd_obj
-        self._globally_changed_files = globally_changed_files
         self._recursive = recursive
         self._force = force
 
@@ -240,13 +232,15 @@ class ReproChange(object):
     def were_dependencies_changed(self, changed_files, data_item_dvc):
         result = False
 
-        for data_item in self.dependencies:
-            change = ReproChange(data_item, self._cmd_obj, self._globally_changed_files, self._recursive, self._force)
+        for entry in self.dependencies:
+            data_item = entry['item']
+            change = ReproChange(data_item, self._cmd_obj, self._recursive, self._force)
             if change.reproduce(changed_files):
                 result = True
                 Logger.debug(u'Repro data item {}: dependency {} was changed'.format(
                     data_item_dvc, data_item.data.dvc))
-            elif data_item.data.dvc in self._globally_changed_files:
+            elif entry['id'] != self.git.get_target_commit(data_item.state.relative):
+#            elif data_item.data.dvc in self._globally_changed_files:
                 msg = u'Repro data item {}: dependency {} was not changed but the data item global checksum was changed'
                 Logger.debug(msg.format(data_item_dvc, data_item.data.dvc))
                 result = True
@@ -282,7 +276,7 @@ class ReproChange(object):
             self.log_repro_reason(u'cache file is missing.')
             return True
 
-        if self.were_sources_changed(self._globally_changed_files):
+        if self.were_sources_changed():
             self.log_repro_reason(u'sources were changed')
             return True
 
@@ -292,18 +286,13 @@ class ReproChange(object):
         msg = u'Repro is required for data item {} because of {}'
         Logger.debug(msg.format(self._data_item.data.relative, reason))
 
-    def were_sources_changed(self, globally_changed_files):
-        were_sources_changed = self.git.were_files_changed(
-            self.state.code_dependencies,
-            self._settings.path_factory,
-            globally_changed_files
-        )
-        return were_sources_changed
+    def were_sources_changed(self):
+        return self.git.were_files_changed(self.state.code_dependencies)
 
     @property
     def dependencies(self):
-        dependency_data_items = []
-        for input_file in self.state.input_files:
+        for entry in self.state.input_files:
+            input_file = entry['name']
             try:
                 data_item = self._settings.path_factory.data_item(input_file)
             except NotInDataDirError:
@@ -312,6 +301,6 @@ class ReproChange(object):
                 raise ReproError(u'Unable to reproduced the dependency file "{}": {}'.format(
                     input_file, ex))
 
-            dependency_data_items.append(data_item)
+            entry['item'] = data_item
 
-        return dependency_data_items
+        return self.state.input_files

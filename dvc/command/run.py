@@ -111,6 +111,7 @@ class CmdRun(CmdBase):
 
         input_set = set(data_items_from_args + input_data_items) - output_set
         input_files_dvc = [x.data.dvc for x in input_set]
+        input_files_state = [x.state.relative for x in input_set]
 
         code_dependencies_dvc = self.git.abs_paths_to_dvc(code_dependencies + not_data_items_from_args)
 
@@ -125,9 +126,9 @@ class CmdRun(CmdBase):
             state_file = StateFile(StateFile.COMMAND_RUN,
                                    data_item,
                                    self.settings,
-                                   input_files_dvc,
+                                   self.git.get_files_history(zip(input_files_state, input_files_dvc)),
                                    output_files_dvc,
-                                   code_dependencies_dvc,
+                                   self.git.get_files_history(code_dependencies_dvc),
                                    argv=cmd_args,
                                    lock=lock,
                                    stdout=self._stdout_to_dvc(stdout),

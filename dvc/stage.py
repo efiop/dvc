@@ -105,11 +105,15 @@ class Output(object):
             src = self.path
             link = self.cache
         else:
-            raise OutputNoCacheError(self.path)
+            self.project.logger.debug('Output \'{}\' is not in cache'.format(self.path))
+            if os.path.exists(self.path):
+                os.unlink(self.path)
+            return False
 
         System.hardlink(src, link)
 
         os.chmod(self.path, stat.S_IREAD)
+        return True
 
     def checkout(self):
         if not self.use_cache:

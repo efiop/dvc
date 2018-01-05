@@ -228,7 +228,8 @@ class Stage(object):
                 self.project.logger.debug("Removing '{}'".format(out.path))
                 os.chmod(out.path, stat.S_IWUSR)
                 os.unlink(out.path)
-                os.chmod(out.cache, stat.S_IREAD)
+                if os.path.exists(out.cache):
+                    os.chmod(out.cache, stat.S_IREAD)
 
     def remove(self):
         self.remove_outs()

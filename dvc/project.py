@@ -167,7 +167,8 @@ class Project(object):
         for target in targets:
             node = os.path.relpath(os.path.abspath(target), self.root_dir)
             if node not in stages:
-                raise StageNotFoundError(target)
+                self.logger.info(u'Stage file \'{}\' was not found'.format(node))
+                return None
 
             if recursive:
                 for n in nx.dfs_postorder_nodes(self.graph(), node):

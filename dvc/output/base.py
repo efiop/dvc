@@ -185,7 +185,9 @@ class OutputBase(object):
         if self.IS_DEPENDENCY:
             return ret
 
-        ret[self.PARAM_CACHE] = self.use_cache
+        # NOTE: use_cache is True by default
+        if not self.use_cache:
+            ret[self.PARAM_CACHE] = self.use_cache
 
         if isinstance(self.metric, dict):
             if (
@@ -194,8 +196,11 @@ class OutputBase(object):
             ):
                 del self.metric[self.PARAM_METRIC_XPATH]
 
-        ret[self.PARAM_METRIC] = self.metric
-        ret[self.PARAM_PERSIST] = self.persist
+        if self.metric:
+            ret[self.PARAM_METRIC] = self.metric
+
+        if self.persist:
+            ret[self.PARAM_PERSIST] = self.persist
 
         return ret
 

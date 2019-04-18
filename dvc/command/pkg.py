@@ -10,20 +10,47 @@ from dvc.command.base import CmdBase, fix_subparsers, append_doc_link
 logger = logging.getLogger(__name__)
 
 
-class CmdPkgInstall(CmdBase):
+class CmdPkgAdd(CmdBase):
     def run(self):
         try:
-            self.repo.pkg.install(
-                self.args.address,
-                self.args.target_dir,
-                self.args.select,
-                self.args.file,
-            )
+            self.repo.pkg.add(self.args.url, name=self.args.name)
             return 0
         except DvcException:
             logger.exception(
-                "failed to install package '{}'".format(self.args.address)
+                "failed to add package '{}'".format(self.args.url)
             )
+            return 1
+
+
+class CmdPkgInstall(CmdBase):
+    def run(self):
+        try:
+            self.repo.pkg.install()
+            return 0
+        except DvcException:
+            logger.exception("failed to install packages")
+            return 1
+
+
+class CmdPkgRemove(CmdBase):
+    def run(self):
+        try:
+            self.repo.pkg.remove(self.args.name)
+            return 0
+        except DvcException:
+            logger.exception(
+                "failed to remove package '{}'".format(self.args.name)
+            )
+            return 1
+
+
+class CmdPkgList(CmdBase):
+    def run(self):
+        try:
+            self.repo.pkg.list()
+            return 0
+        except DvcException:
+            logger.exception("failed to list packages")
             return 1
 
 
@@ -45,45 +72,47 @@ def add_parser(subparsers, parent_parser):
 
     fix_subparsers(pkg_subparsers)
 
-    PKG_INSTALL_HELP = "Install package."
+    PKG_ADD_HELP = "Add package."
+    pkg_add_parser = pkg_subparsers.add_parser(
+        "add",
+        parents=[parent_config_parser, parent_parser],
+        description=append_doc_link(PKG_ADD_HELP, "pkg-add"),
+        help=PKG_ADD_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pkg_add_parser.add_argument("url", help="Package URL.")
+    pkg_add_parser.add_argument(
+        "-n", "--name", help="Name to use for this package."
+    )
+    pkg_add_parser.set_defaults(func=CmdPkgAdd)
+
+    PKG_INSTALL_HELP = "Install packages."
     pkg_install_parser = pkg_subparsers.add_parser(
         "install",
-        parents=[parent_config_parser, parent_parser],
+        parents=[parent_parser],
         description=append_doc_link(PKG_INSTALL_HELP, "pkg-install"),
         help=PKG_INSTALL_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    pkg_install_parser.add_argument(
-        "address",
-        nargs="?",
-        default="",
-        help="Package address: git://<url> or https://github.com/...",
-    )
-    pkg_install_parser.add_argument(
-        "target_dir",
-        metavar="target",
-        nargs="?",
-        default=".",
-        help="Target directory to deploy package outputs. "
-        "Default value is the current dir.",
-    )
-    pkg_install_parser.add_argument(
-        "-s",
-        "--select",
-        metavar="OUT",
-        action="append",
-        default=[],
-        help="Select and persist only specified outputs from a package. "
-        "The parameter can be used multiple times. "
-        "All outputs will be selected by default.",
-    )
-    pkg_install_parser.add_argument(
-        "-f",
-        "--file",
-        help="Specify name of the stage file. It should be "
-        "either 'Dvcfile' or have a '.dvc' suffix (e.g. "
-        "'prepare.dvc', 'clean.dvc', etc). "
-        "By default the file has 'mod_' prefix and imported package name "
-        "followed by .dvc",
-    )
     pkg_install_parser.set_defaults(func=CmdPkgInstall)
+
+    PKG_REMOVE_HELP = "Remove package."
+    pkg_remove_parser = pkg_subparsers.add_parser(
+        "remove",
+        parents=[parent_config_parser, parent_parser],
+        description=append_doc_link(PKG_REMOVE_HELP, "pkg-remove"),
+        help=PKG_REMOVE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pkg_remove_parser.add_argument("name", help="Package name.")
+    pkg_remove_parser.set_defaults(func=CmdPkgRemove)
+
+    PKG_LIST_HELP = "List packages."
+    pkg_list_parser = pkg_subparsers.add_parser(
+        "list",
+        parents=[parent_config_parser, parent_parser],
+        description=append_doc_link(PKG_LIST_HELP, "pkg-list"),
+        help=PKG_LIST_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    pkg_list_parser.set_defaults(func=CmdPkgList)

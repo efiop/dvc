@@ -2,7 +2,17 @@ class Pkg(object):
     def __init__(self, repo):
         self.repo = repo
 
-    def install(self, *args, **kwargs):
-        from dvc.repo.pkg.install import install
+    def add(self, *args, **kwargs):
+        from dvc.repo.pkg.add import add
 
-        return install(self.repo, *args, **kwargs)
+        return add(self.repo, *args, **kwargs)
+
+    def remove(self, *args, **kwargs):
+        from dvc.repo.pkg.remove import remove
+
+        return remove(self.repo, *args, **kwargs)
+
+    def list(self, *args, **kwargs):
+        from dvc.repo.pkg.list import lst
+
+        return lst(self.repo, *args, **kwargs)

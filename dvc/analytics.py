@@ -97,7 +97,7 @@ class Analytics(object):
             try:
                 info = json.load(fobj)
                 return info[self.PARAM_USER_ID]
-            except json.JSONDecodeError as exc:
+            except ValueError as exc:
                 logger.debug("Failed to load user_id: {}".format(exc))
                 return None
 

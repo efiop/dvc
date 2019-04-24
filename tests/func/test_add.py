@@ -12,7 +12,7 @@ from dvc.system import System
 from mock import patch
 
 from dvc.main import main
-from dvc.utils import file_md5
+from dvc.utils import file_checksum
 from dvc.utils.stage import load_stage_file
 from dvc.stage import Stage
 from dvc.exceptions import DvcException, RecursiveAddingWhileUsingFilename
@@ -25,7 +25,7 @@ from tests.utils import spy, get_gitignore_content
 
 class TestAdd(TestDvc):
     def test(self):
-        md5 = file_md5(self.FOO)[0]
+        md5 = file_checksum(self.FOO)[0]
 
         stages = self.dvc.add(self.FOO)
         self.assertEqual(len(stages), 1)

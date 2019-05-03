@@ -33,11 +33,13 @@ class PackageManager(object):
 
 
 class Package(object):
-    MODULES_DIR = "dvc_mod"
+    PKG_DIR = "dvc_mod"
 
-    def install_or_update(
-        self, parent_repo, address, target_dir, select=[], fname=None
-    ):
+    def __init__(self, repo):
+        self.repo = repo
+        self.pkg_dir = os.path.join(repo.dvc_dir, self.PKG_DIR)
+
+    def install(self, parent_repo, address, target_dir, select=[], fname=None):
         raise NotImplementedError(
             "A method of abstract Package class was called"
         )

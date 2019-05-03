@@ -131,6 +131,8 @@ class Config(object):  # pylint: disable=too-many-instance-attributes
     # location, that url should resolved relative to.
     PRIVATE_CWD = "_cwd"
 
+    DVC_DIR = ".dvc"
+
     CONFIG = "config"
     CONFIG_LOCAL = "config.local"
 
@@ -266,6 +268,10 @@ class Config(object):  # pylint: disable=too-many-instance-attributes
         Optional(PRIVATE_CWD): str,
     }
 
+    SECTION_PKG_FMT = 'pkg "{}"'
+    SECTION_PKG_URL = SECTION_REMOTE_URL
+    SECTION_PKG_SCHEMA = {SECTION_PKG_URL: str}
+
     SECTION_STATE = "state"
     SECTION_STATE_ROW_LIMIT = "row_limit"
     SECTION_STATE_ROW_CLEANUP_QUOTA = "row_cleanup_quota"
@@ -285,31 +291,83 @@ class Config(object):  # pylint: disable=too-many-instance-attributes
         Optional(SECTION_LOCAL, default={}): SECTION_LOCAL_SCHEMA,
     }
 
-    def __init__(self, dvc_dir=None, validate=True):
-        self.system_config_file = os.path.join(
-            self.get_system_config_dir(), self.CONFIG
-        )
-        self.global_config_file = os.path.join(
-            self.get_global_config_dir(), self.CONFIG
-        )
-
-        if dvc_dir is not None:
-            self.dvc_dir = os.path.abspath(os.path.realpath(dvc_dir))
-            self.config_file = os.path.join(dvc_dir, self.CONFIG)
-            self.config_local_file = os.path.join(dvc_dir, self.CONFIG_LOCAL)
-        else:
+    def __init__(
+        self,
+        root_dir=None,
+        validate=True,
+        system=False,
+        glob=False,
+        local=False,
+        merge=True,
+    ):
+        try:
+            self.root_dir = os.path.abspath(
+                os.path.realpath(self.find_root(root_dir))
+            )
+            self.dvc_dir = os.path.join(self.root_dir, self.DVC_DIR)
+        except NotDvcRepoError:
+            self.root_dir = None
             self.dvc_dir = None
-            self.config_file = None
-            self.config_local_file = None
 
-        self._system_config = None
-        self._global_config = None
-        self._repo_config = None
-        self._local_config = None
+        system_file = os.path.join(self.get_system_dir(), self.CONFIG)
+        global_file = os.path.join(self.get_global_dir(), self.CONFIG)
 
-        self.config = None
+        if self.dvc_dir is not None:
+            repo_file = os.path.join(self.dvc_dir, self.CONFIG)
+            local_file = os.path.join(self.dvc_dir, self.CONFIG_LOCAL)
+        else:
+            repo_file = None
+            local_file = None
 
-        self.load(validate=validate)
+        system = self._load_config(system_file)
+        glob = self._load_config(global_file)
+        repo = self._load_config(repo_file)
+        local = self._load_config(local_file)
+
+        configs = [local, repo, glob, system]
+
+        if system:
+            self.config = self._system_config
+        elif glob:
+            self.config = self._global_config
+        elif local:
+            self.config = self._local_config
+        elif merge:
+            self.config = configobj.ConfigObj()
+            for config in configs:
+                self.config.merge(config)
+        else:
+            self.config = self._repo_config
+
+        # NOTE: schema doesn't support ConfigObj.Section validation, so we
+        # need to convert our config to dict before passing it to
+        config_dict = dict(config)
+        if validate:
+            config_dict = Schema(self.SCHEMA).validate(config_dict)
+            self.config.merge(config_dict)
+
+        self._resolve_paths(self.config, self.config_file)
+
+    @classmethod
+    def find_root(cls, root=None):
+        if root is None:
+            root = os.getcwd()
+        else:
+            root = os.path.abspath(os.path.realpath(root))
+
+        while True:
+            dvc_dir = os.path.join(root, cls.DVC_DIR)
+            if os.path.isdir(dvc_dir):
+                return root
+            if os.path.ismount(root):
+                break
+            root = os.path.dirname(root)
+        raise NotDvcRepoError(root)
+
+    @classmethod
+    def find_dvc_dir(cls, root=None):
+        root_dir = cls.find_root(root)
+        return os.path.join(root_dir, cls.DVC_DIR)
 
     @staticmethod
     def get_global_config_dir():
@@ -351,22 +409,6 @@ class Config(object):  # pylint: disable=too-many-instance-attributes
         open(config_file, "w+").close()
         return Config(dvc_dir)
 
-    def _load(self):
-        self._system_config = configobj.ConfigObj(self.system_config_file)
-        self._global_config = configobj.ConfigObj(self.global_config_file)
-
-        if self.config_file is not None:
-            self._repo_config = configobj.ConfigObj(self.config_file)
-        else:
-            self._repo_config = configobj.ConfigObj()
-
-        if self.config_local_file is not None:
-            self._local_config = configobj.ConfigObj(self.config_local_file)
-        else:
-            self._local_config = configobj.ConfigObj()
-
-        self.config = None
-
     def _load_config(self, path):
         config = configobj.ConfigObj(path)
         config = self._lower(config)
@@ -401,41 +443,6 @@ class Config(object):  # pylint: disable=too-many-instance-attributes
 
             section[self.PRIVATE_CWD] = os.path.dirname(fname)
 
-    def load(self, validate=True):
-        """Loads config from all the config files.
-
-        Args:
-            validate (bool): optional flag to tell dvc if it should validate
-                the config or just load it as is. 'True' by default.
-
-
-        Raises:
-            dvc.config.ConfigError: thrown if config has invalid format.
-        """
-        self._load()
-        try:
-            self.config = self._load_config(self.system_config_file)
-            user = self._load_config(self.global_config_file)
-            config = self._load_config(self.config_file)
-            local = self._load_config(self.config_local_file)
-
-            # NOTE: schema doesn't support ConfigObj.Section validation, so we
-            # need to convert our config to dict before passing it to
-            for conf in [user, config, local]:
-                self.config = self._merge(self.config, conf)
-
-            if validate:
-                self.config = Schema(self.SCHEMA).validate(self.config)
-
-            # NOTE: now converting back to ConfigObj
-            self.config = configobj.ConfigObj(
-                self.config, write_empty_values=True
-            )
-            self.config.filename = self.config_file
-            self._resolve_paths(self.config, self.config_file)
-        except Exception as ex:
-            raise ConfigError(ex)
-
     @staticmethod
     def _get_key(conf, name, add=False):
         for k in conf.keys():
@@ -447,42 +454,6 @@ class Config(object):  # pylint: disable=too-many-instance-attributes
             return name
 
         return None
-
-    def save(self, config=None):
-        """Saves config to config files.
-
-        Args:
-            config (configobj.ConfigObj): optional config object to save.
-
-        Raises:
-            dvc.config.ConfigError: thrown if failed to write config file.
-        """
-        if config is not None:
-            clist = [config]
-        else:
-            clist = [
-                self._system_config,
-                self._global_config,
-                self._repo_config,
-                self._local_config,
-            ]
-
-        for conf in clist:
-            if conf.filename is None:
-                continue
-
-            try:
-                logger.debug("Writing '{}'.".format(conf.filename))
-                dname = os.path.dirname(os.path.abspath(conf.filename))
-                try:
-                    os.makedirs(dname)
-                except OSError as exc:
-                    if exc.errno != errno.EEXIST:
-                        raise
-                conf.write()
-            except Exception as exc:
-                msg = "failed to write config '{}'".format(conf.filename)
-                raise ConfigError(msg, exc)
 
     def get_remote_settings(self, name):
         import posixpath
@@ -534,82 +505,128 @@ class Config(object):  # pylint: disable=too-many-instance-attributes
 
         return settings
 
-    @staticmethod
-    def unset(config, section, opt=None):
+    def remote_add(self, url, name, default, force):
+        from dvc.remote import _get, RemoteLOCAL
+
+        remote = _get({self.SECTION_REMOTE_URL: url})
+        if remote == RemoteLOCAL and not url.startswith("remote://"):
+            if not os.path.isabs(url):
+                url = os.path.relpath(
+                    url, os.path.dirname(self.config.filename)
+                )
+
+        section = self.SECTION_REMOTE_FMT.format(name)
+        if (section in self.config.keys()) and not force:
+            raise ConfigError(
+                "Remote with name {} already exists. "
+                "Use -f (--force) to overwrite remote "
+                "with new value".format(self.args.name)
+            )
+
+        self.set(section, self.SECTION_REMOTE_URL, url)
+
+        if default:
+            logger.info("Setting '{}' as a default remote.".format(name))
+            self.set(self.SECTION_CORE, self.SECTION_CORE_REMOTE, name)
+
+    def _remove_default(self, config, name):
+        core = self.config.get(self.SECTION_CORE, None)
+        if core is None:
+            return 0
+
+        default = core.get(self.SECTION_CORE_REMOTE, None)
+        if default is None:
+            return 0
+
+        if default == name:
+            self.unset(self.SECTION_CORE, self.SECTION_CORE_REMOTE)
+
+    def remote_remove(self, name):
+        self.unset(SECTION_REMOTE_FMT.format(name))
+
+        for config in [self.local, self.repo, self.glob, self.system]:
+            self._remove_default(config, name)
+            if config == self.config:
+                break
+
+    def remote_modify(self, name, option, value):
+        self.set(SECTION_REMOTE_FMT.format(name), option, value)
+
+    def get_pkg_settings(self, name):
+        return self.config[self.SECTION_PKG_FMT.format(name)]
+
+    def pkg_add(self, url, name):
+        self.set(SECTION_PKG_FMT.format(name), SECTION_PKG_URL, url)
+
+    def pkg_remove(self, name):
+        self.unset(SECTION_PKG_FMT.format(name))
+
+    def pkg_modify(self, name, option, value):
+        self.set(SECTION_PKG_FMT.format(name), option, value)
+
+    def unset(self, section, opt=None):
         """Unsets specified option and/or section in the config.
 
         Args:
-            config (configobj.ConfigObj): config to work on.
             section (str): section name.
             opt (str): optional option name.
         """
-        if section not in config.keys():
+        if section not in self.config.keys():
             raise ConfigError("section '{}' doesn't exist".format(section))
 
         if opt is None:
-            del config[section]
+            del self.config[section]
+            self.config.save()
             return
 
-        if opt not in config[section].keys():
+        if opt not in self.config[section].keys():
             raise ConfigError(
                 "option '{}.{}' doesn't exist".format(section, opt)
             )
-        del config[section][opt]
+        del self.config[section][opt]
 
-        if not config[section]:
-            del config[section]
+        if not self.config[section]:
+            del self.config[section]
 
-    @staticmethod
-    def set(config, section, opt, value):
+        self.config.save()
+
+    def set(self, section, opt, value):
         """Sets specified option in the config.
 
         Args:
-            config (configobj.ConfigObj): config to work on.
             section (str): section name.
             opt (str): option name.
             value: value to set option to.
         """
-        if section not in config.keys():
-            config[section] = {}
+        if section not in self.config.keys():
+            self.config[section] = {}
 
         config[section][opt] = value
+        config.save()
 
-    @staticmethod
-    def show(config, section, opt):
+    def show(self, section, opt):
         """Prints option value from the config.
 
         Args:
-            config (configobj.ConfigObj): config to work on.
             section (str): section name.
             opt (str): option name.
         """
-        if section not in config.keys():
+        if section not in self.config.keys():
             raise ConfigError("section '{}' doesn't exist".format(section))
 
-        if opt not in config[section].keys():
+        if opt not in self.config[section].keys():
             raise ConfigError(
                 "option '{}.{}' doesn't exist".format(section, opt)
             )
 
-        logger.info(config[section][opt])
-
-    @staticmethod
-    def _merge(first, second):
-        res = {}
-        sections = list(first.keys()) + list(second.keys())
-        for section in sections:
-            first_copy = first.get(section, {}).copy()
-            second_copy = second.get(section, {}).copy()
-            first_copy.update(second_copy)
-            res[section] = first_copy
-        return res
+        return self.config[section][opt]
 
     @staticmethod
     def _lower(config):
-        new_config = {}
-        for s_key, s_value in config.items():
-            new_s = {}
-            for key, value in s_value.items():
-                new_s[key.lower()] = str(value)
-            new_config[s_key.lower()] = new_s
-        return new_config
+        for s_key in config.keys():
+            s_value = config.pop(s_key)
+            for key in s_value.keys():
+                value = s_value.pop(key)
+                s_value[key.lower()] = value
+            config[s_key.lower()] = s_value
+        return config

@@ -12,6 +12,8 @@ from dvc.dependency.ssh import DependencySSH
 from dvc.dependency.http import DependencyHTTP
 
 from dvc.remote import Remote
+from dvc.pkg import Package
+
 
 DEPS = [
     DependencyGS,
@@ -51,6 +53,11 @@ def _get(stage, p, info):
         settings = stage.repo.config.get_remote_settings(parsed.netloc)
         remote = Remote(stage.repo, settings)
         return DEP_MAP[remote.scheme](stage, p, info, remote=remote)
+
+    if parsed.scheme == "pkg":
+        settings = stage.repo.config.get_pkg_settings(parsed.netloc)
+        pkg = Package(stage.repo, settings)
+        return DependencyLOCAL(stage, p, info, pkg=pkg)
 
     for d in DEPS:
         if d.supported(p):

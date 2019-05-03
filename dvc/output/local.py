@@ -26,6 +26,7 @@ class OutputLOCAL(OutputBase):
         metric=False,
         persist=False,
         tags=None,
+        pkg=None,
     ):
         super(OutputLOCAL, self).__init__(
             stage,
@@ -36,11 +37,20 @@ class OutputLOCAL(OutputBase):
             metric=metric,
             persist=persist,
             tags=tags,
+            pkg=pkg,
         )
         if remote:
             p = os.path.join(
                 remote.prefix, urlparse(self.url).path.lstrip("/")
             )
+        elif pkg:
+            assert self.IS_DEPENDENCY
+            out_path = os.path.join(
+                pkg.dvc.root_dir, urlparse(self.url).path.lstrip("/")
+            )
+            outs = pkg.dvc.find_outs_by_path(out_path)
+            assert len(outs) == 1
+            p = outs[0].cache_path
         else:
             p = path
 

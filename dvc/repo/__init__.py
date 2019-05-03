@@ -17,8 +17,6 @@ logger = logging.getLogger(__name__)
 
 
 class Repo(object):
-    DVC_DIR = ".dvc"
-
     from dvc.repo.destroy import destroy
     from dvc.repo.install import install
     from dvc.repo.add import add
@@ -51,12 +49,10 @@ class Repo(object):
         from dvc.repo.tag import Tag
         from dvc.repo.pkg import Pkg
 
-        root_dir = self.find_root(root_dir)
+        self.config = Config(root_dir)
 
-        self.root_dir = os.path.abspath(os.path.realpath(root_dir))
-        self.dvc_dir = os.path.join(self.root_dir, self.DVC_DIR)
-
-        self.config = Config(self.dvc_dir)
+        self.root_dir = self.config.root_dir
+        self.dvc_dir = self.config.dvc_dir
 
         self.tree = WorkingTree(self.root_dir)
 
@@ -88,27 +84,6 @@ class Repo(object):
 
     def __repr__(self):
         return "Repo: '{root_dir}'".format(root_dir=self.root_dir)
-
-    @staticmethod
-    def find_root(root=None):
-        if root is None:
-            root = os.getcwd()
-        else:
-            root = os.path.abspath(os.path.realpath(root))
-
-        while True:
-            dvc_dir = os.path.join(root, Repo.DVC_DIR)
-            if os.path.isdir(dvc_dir):
-                return root
-            if os.path.ismount(root):
-                break
-            root = os.path.dirname(root)
-        raise NotDvcRepoError(root)
-
-    @staticmethod
-    def find_dvc_dir(root=None):
-        root_dir = Repo.find_root(root)
-        return os.path.join(root_dir, Repo.DVC_DIR)
 
     @staticmethod
     def init(root_dir=os.curdir, no_scm=False, force=False):

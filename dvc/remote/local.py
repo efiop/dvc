@@ -152,7 +152,9 @@ class RemoteLOCAL(RemoteBase):
         return False
 
     def link(self, cache, path):
-        assert os.path.isfile(cache)
+        if not os.path.isfile(cache):
+            logger.warning("skipping linking '{}' -> '{}".format(cache, path))
+            return
 
         dname = os.path.dirname(path)
         if not os.path.exists(dname):

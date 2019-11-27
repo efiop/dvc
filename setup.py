@@ -81,6 +81,7 @@ install_requires = [
     "packaging>=19.0",
     "win-unicode-console>=0.5; sys_platform == 'win32'",
     "pywin32>=225; sys_platform == 'win32'",
+    "zc.lockfile>=1.2.1",
 ]
 
 if sys.version_info[0] == 2:
@@ -158,12 +159,7 @@ setup(
         "ssh_gssapi": ssh_gssapi,
         "hdfs": hdfs,
         # NOTE: https://github.com/inveniosoftware/troubleshooting/issues/1
-        ":python_version=='2.7'": [
-            "futures",
-            "pathlib2",
-            "zc.lockfile>=1.2.1",
-        ],
-        ":python_version>='3.0'": ["flufl.lock>=3.2"],
+        ":python_version=='2.7'": ["futures", "pathlib2"],
         "tests": tests_requirements,
     },
     keywords="data science, data version control, machine learning",

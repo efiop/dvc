@@ -6,10 +6,7 @@ import os
 import time
 from datetime import timedelta
 
-from funcy.py3 import lkeep
-
 from dvc.exceptions import DvcException
-from dvc.utils import makedirs
 from dvc.utils.compat import is_py3
 
 
@@ -42,8 +39,6 @@ if is_py3:
             import socket
 
             self._tmp_dir = tmp_dir
-            if self._tmp_dir is not None:
-                makedirs(self._tmp_dir, exist_ok=True)
 
             # NOTE: this is basically Lock.__init__ copy-paste, except that
             # instead of using `socket.getfqdn()` we use `socket.gethostname()`
@@ -70,9 +65,6 @@ if is_py3:
             return self._lockfile
 
         @property
-        def files(self):
-            return lkeep([self._lockfile, self._tmp_dir])
-
         def lock(self):
             try:
                 super(Lock, self).lock(timedelta(seconds=DEFAULT_TIMEOUT))
@@ -113,10 +105,6 @@ else:
         def __init__(self, lockfile, tmp_dir=None):
             self.lockfile = lockfile
             self._lock = None
-
-        @property
-        def files(self):
-            return [self.lockfile]
 
         def _do_lock(self):
             try:

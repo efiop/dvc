@@ -7,6 +7,8 @@ import re
 import signal
 import subprocess
 import threading
+
+from functools import wraps
 from itertools import chain
 
 from voluptuous import Any, Schema, MultipleInvalid
@@ -127,6 +129,43 @@ class MissingDataSource(DvcException):
 
         msg = "missing data {}: {}".format(source, ", ".join(missing_files))
         super(MissingDataSource, self).__init__(msg)
+
+
+def rwlocked(read=[], write=[]):
+    def _rwlocked(f):
+        @wraps(f)
+        def wrapper(stage, *args, **kwargs):
+            from dvc.rwlock import rwlock
+
+            def _chain(names):
+                return [
+                    item.path_info.url
+                    for attr in names
+                    for item in getattr(stage, attr)
+                ]
+
+            with rwlock(stage.repo.tmp_dir, _chain(read), _chain(write)):
+                return f(stage, *args, **kwargs)
+
+        return wrapper
+
+    return _rwlocked
+
+
+def unlocked_repo(f):
+    @wraps(f)
+    def wrapper(stage, *args, **kwargs):
+        stage.repo.state.dump()
+        stage.repo.lock.unlock()
+        stage.repo._reset()
+        try:
+            ret = f(stage, *args, **kwargs)
+        finally:
+            stage.repo.lock.lock()
+            stage.repo.state.load()
+        return ret
+
+    return wrapper
 
 
 class Stage(object):
@@ -755,6 +794,7 @@ class Stage(object):
                 )
             self.save()
 
+    @rwlocked(write=["outs"])
     def commit(self):
         for out in self.outs:
             out.commit()
@@ -801,6 +841,8 @@ class Stage(object):
             if occurrence > 1:
                 raise ArgumentDuplicationError(str(path))
 
+    @rwlocked(read=["deps"], write=["outs"])
+    @unlocked_repo
     def _run(self):
         self._check_missing_deps()
 
@@ -850,6 +892,10 @@ class Stage(object):
         if (p is None) or (p.returncode != 0):
             raise StageCmdFailedError(self)
 
+    @rwlocked(read=["deps"], write=["outs"])
+    def _import(self):
+        self.deps[0].download(self.outs[0])
+
     def run(self, dry=False, no_commit=False, force=False):
         if (self.cmd or self.is_import) and not self.locked and not dry:
             self.remove_outs(ignore_remove=False, force=False)
@@ -873,8 +919,7 @@ class Stage(object):
                 if not force and self._already_cached():
                     self.outs[0].checkout()
                 else:
-                    self.deps[0].download(self.outs[0])
-
+                    self._import()
         elif self.is_data_source:
             msg = "Verifying data sources in '{}'".format(self.relpath)
             logger.info(msg)
@@ -899,11 +944,13 @@ class Stage(object):
             if not no_commit:
                 self.commit()
 
+    @rwlocked(read=["outs"])
     def check_missing_outputs(self):
         paths = [str(out) for out in self.outs if not out.exists]
         if paths:
             raise MissingDataSource(paths)
 
+    @rwlocked(write=["outs"])
     def checkout(self, force=False, progress_callback=None):
         failed_checkouts = []
         for out in self.outs:
@@ -923,6 +970,7 @@ class Stage(object):
 
         return ret
 
+    @rwlocked(read=["deps", "outs"])
     def status(self):
         ret = []
 
@@ -946,6 +994,7 @@ class Stage(object):
 
         return {}
 
+    @rwlocked(read=["deps", "outs"])
     def _already_cached(self):
         return (
             not self.changed_md5()

@@ -359,7 +359,10 @@ class Stage(object):
         from dvc.utils.compat import convert_to_unicode
 
         try:
-            Stage.COMPILED_SCHEMA(convert_to_unicode(d))
+            print("dict type " + str(type(d)))
+            ud = convert_to_unicode(d)
+            print("udict type " + str(type(ud)))
+            Stage.COMPILED_SCHEMA(ud)
         except MultipleInvalid as exc:
             raise StageFileFormatError(fname, exc)
 

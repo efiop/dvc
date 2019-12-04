@@ -18,7 +18,11 @@ def load_stage_file(path):
 
 def parse_stage(text, path):
     try:
-        return yaml.load(text, Loader=SafeLoader) or {}
+        print("type for {}:".format(path) + str(type(text)))
+        print("text for {}:".format(path) + text)
+        ret = yaml.load(text, Loader=SafeLoader) or {}
+        assert isinstance(ret, dict)
+        return ret
     except yaml.error.YAMLError as exc:
         raise StageFileCorruptedError(path, cause=exc)
 

@@ -612,8 +612,11 @@ class Stage(object):
         Stage._check_dvc_filename(fname)
         Stage._check_isfile(repo, fname)
 
-        with repo.tree.open(fname) as fd:
+        #        with repo.tree.open(fname) as fd:
+        with open(fname, "r") as fd:
             stage_text = fd.read()
+            print("stage {} text: {}".format(fname, stage_text))
+        print("stage {} text: {}".format(fname, stage_text))
         d = parse_stage(stage_text, fname)
 
         Stage.validate(d, fname=relpath(fname))

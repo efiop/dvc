@@ -111,19 +111,25 @@ def test_update_before_and_after_dvc_init(tmp_dir, dvc, git_dir):
     assert dvc.status([stage.path]) == {}
 
 
-def test_update_import_url(tmp_dir, dvc, tmp_path_factory):
-    import_src = tmp_path_factory.mktemp("import_url_source")
-    src = import_src / "file"
-    src.write_text("file content")
+@pytest.mark.parametrize(
+    "workspace",
+    [
+        pytest.lazy_fixture(cloud)
+        for cloud in ["local_cloud", "s3", "gs", "hdfs", "ssh"]
+    ],
+    indirect=True,
+)
+def test_update_import_url(tmp_dir, dvc, workspace):
+    workspace.gen("file", "file content")
 
     dst = tmp_dir / "imported_file"
-    stage = dvc.imp_url(os.fspath(src), os.fspath(dst))
+    stage = dvc.imp_url("remote://workspace/file", os.fspath(dst))
 
     assert dst.is_file()
     assert dst.read_text() == "file content"
 
     # update data
-    src.write_text("updated file content")
+    workspace.gen("file", "updated file content")
 
     assert dvc.status([stage.path]) == {}
     dvc.update([stage.path])

@@ -1,15 +1,15 @@
+# pylint:disable=abstract-method
 import pytest
+
+from dvc.path_info import HTTPURLInfo
 
 from .base import Base
 
 
-class HTTP(Base):
+class HTTP(Base, HTTPURLInfo):
     @staticmethod
     def get_url(port):  # pylint: disable=arguments-differ
         return f"http://127.0.0.1:{port}"
-
-    def __init__(self, server):
-        self.url = self.get_url(server.server_port)
 
 
 @pytest.fixture
@@ -22,7 +22,7 @@ def http_server(tmp_dir):
 
 @pytest.fixture
 def http(http_server):
-    yield HTTP(http_server)
+    yield HTTP(HTTP.get_url(http_server.server_port))
 
 
 @pytest.fixture

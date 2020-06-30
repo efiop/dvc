@@ -112,3 +112,34 @@ def test_import_url_with_no_exec(tmp_dir, dvc, erepo_dir):
     dvc.imp_url(src, ".", no_exec=True)
     dst = tmp_dir / "file"
     assert not dst.exists()
+
+
+@pytest.mark.parametrize(
+    "workspace",
+    [
+        pytest.lazy_fixture(cloud)
+        for cloud in ["local_cloud", "s3", "gs", "hdfs", "ssh"]
+    ],
+    indirect=True,
+)
+def test_import_url(tmp_dir, dvc, workspace):
+    workspace.gen(
+        {
+            "file": "file",
+            "dir": {"file": "file", "subdir": {"subfile": "subfile"}},
+        }
+    )
+    assert not (tmp_dir / "file").exists()  # sanity check
+    dvc.imp_url("remote://workspace/file")
+    assert (tmp_dir / "file").read_text() == "file"
+
+    assert dvc.status() == {}
+
+    assert not (tmp_dir / "dir").exists()  # sanity check
+    dvc.imp_url("remote://workspace/dir")
+    assert set(os.listdir(tmp_dir / "dir")) == {"file", "subdir"}
+    assert (tmp_dir / "dir" / "file").read_text() == "file"
+    assert list(os.listdir(tmp_dir / "dir" / "subdir")) == ["subfile"]
+    assert (tmp_dir / "dir" / "subdir" / "subfile").read_text() == "subfile"
+
+    assert dvc.status() == {}

@@ -6,6 +6,9 @@ import shlex
 from functools import partial
 from typing import Optional
 
+from dulwich import porcelain
+from dulwich.ignore import IgnoreFilterManager
+from dulwich.repo import Repo
 from funcy import cached_property, first
 from pathspec.patterns import GitWildMatchPattern
 
@@ -184,11 +187,8 @@ class Git(Base):
         return entry, gitignore
 
     def _ignored(self, path):
-        from dulwich import ignore
-        from dulwich.repo import Repo
-
         repo = Repo(self.root_dir)
-        manager = ignore.IgnoreFilterManager.from_repo(repo)
+        manager = IgnoreFilterManager.from_repo(repo)
         return manager.is_ignored(relpath(path, self.root_dir))
 
     def ignore(self, path):
@@ -255,7 +255,9 @@ class Git(Base):
             logger.exception(msg)
 
     def commit(self, msg):
-        self.repo.index.commit(msg)
+        porcelain.commit(
+            repo=self.root_dir, message=msg,
+        )
 
     def checkout(self, branch, create_new=False):
         if create_new:

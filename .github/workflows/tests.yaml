@@ -1,12 +1,6 @@
 name: Tests build
 
-on:
-  pull_request:
-    branches:
-      - master
-  push:
-    branches:
-      - master
+on: [pull_request, push]
 
 env:
   DVC_TEST: "true"
@@ -18,26 +12,27 @@ env:
   GS_CREDS_JSON: ${{ secrets.GS_CREDS_JSON }}
 
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2.3.2
-    - name: Set up Python 3.8
-      uses: actions/setup-python@v1
-      with:
-        python-version: 3.8
-    - name: Install requirements
-      run: pip install ".[all,tests]" Pygments collective.checkdocs pre-commit
-    - name: Check README
-      run: python setup.py checkdocs
-    - name: Check formatting
-      run: pre-commit run --all-files
+#  lint:
+#    runs-on: ubuntu-latest
+#    steps:
+#    - uses: actions/checkout@v2.3.2
+#    - name: Set up Python 3.8
+#      uses: actions/setup-python@v1
+#      with:
+#        python-version: 3.8
+#    - name: Install requirements
+#      run: pip install ".[all,tests]" Pygments collective.checkdocs pre-commit
+#    - name: Check README
+#      run: python setup.py checkdocs
+#    - name: Check formatting
+#      run: pre-commit run --all-files
   tests:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-18.04, windows-2019, macos-10.15]
+#        os: [ubuntu-18.04, windows-2019, macos-10.15]
+        os: [windows-2019]
         pyv: ["3.6", "3.7", "3.8", "3.9"]
     steps:
     - uses: actions/checkout@v2.3.2

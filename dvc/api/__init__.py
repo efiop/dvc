@@ -1,3 +1,4 @@
+import errno
 import os
 from contextlib import _GeneratorContextManager as GCM
 
@@ -8,7 +9,7 @@ from dvc.path_info import PathInfo
 from dvc.repo import Repo
 
 
-def get_url(path, repo=None, rev=None, remote=None):
+def get_url(path, repo=None, rev=None, remote=None, recursive=False):
     """
     Returns the URL to the storage location of a data file or directory tracked
     in a DVC repo. For Git repos, HEAD is used unless a rev argument is
@@ -29,7 +30,19 @@ def get_url(path, repo=None, rev=None, remote=None):
 
         cloud = metadata.repo.cloud
         hash_info = _repo.repo_tree.get_hash(path_info)
-        return cloud.get_url_for(remote, checksum=hash_info.value)
+
+        if not recursive:
+            return cloud.get_url_for(remote, checksum=hash_info.value)
+
+        if not metadata.isdir:
+            raise NotADirectoryError(
+                errno.ENOTDIR, os.strerror(errno.ENOTDIR), path
+            )
+
+        for entry_path, hash_info in hash_info.dir_info.items():
+            yield entry_path, cloud.get_url_for(
+                remote, checksum=hash_info.value
+            )
 
 
 def open(  # noqa, pylint: disable=redefined-builtin

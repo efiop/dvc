@@ -271,3 +271,22 @@ def test_get_url_subrepos(tmp_dir, scm, local_cloud):
 
     expected_url = os.path.join(path, "37", "b51d194a7513e45b56f6524f2d51f2")
     assert api.get_url("subrepo/bar") == expected_url
+
+
+def test_get_url_recursive(tmp_dir, dvc, s3):
+    tmp_dir.add_remote(config=s3.config)
+    tmp_dir.dvc_gen(
+        {"dir": {"foo": "foo", "bar": "bar", "nested": {"file": "file"}}}
+    )
+
+    expected = {
+        "foo": URLInfo(s3.url) / "ac/bd18db4cc2f85cedef654fccc4a4d8",
+        "bar": URLInfo(s3.url) / "37/b51d194a7513e45b56f6524f2d51f2",
+        "nested/file": URLInfo(s3.url) / "8c/7dd922ad47494fc02c388e12c00eac",
+    }
+
+    actual = {}
+    for name, url in api.get_url("dir", recursive=True):
+        actual[name] = url
+
+    assert expected == actual

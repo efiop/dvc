@@ -8,7 +8,7 @@ from typing import Callable, Dict, Iterable, Optional, Tuple
 
 from dvc.path_info import PathInfo
 from dvc.progress import Tqdm
-from dvc.scm.base import SCMError
+from dvc.scm.base import CloneError, SCMError
 from dvc.utils import relpath
 
 from ..objects import GitObject
@@ -105,7 +105,25 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
         rev: Optional[str] = None,
         shallow_branch: Optional[str] = None,
     ):
-        raise NotImplementedError
+        from dulwich.errors import NotGitRepository
+        from dulwich.porcelain import clone
+
+        kwargs = {}
+        if shallow_branch:
+            kwargs["depth"] = 1
+
+        try:
+            repo = clone(url, target=to_path, checkout=True, **kwargs)
+        except NotGitRepository as exc:
+            raise CloneError(url, to_path) from exc
+
+        repo.refs.set_symbolic_ref(
+            b"refs/remotes/origin/HEAD", b"refs/remotes/origin/master"
+        )
+        config = repo.get_config()
+        config.set((b"branch", b"master"), b"remote", b"origin")
+        config.set((b"branch", b"master"), b"merge", b"refs/heads/master")
+        config.write_to_path()
 
     @staticmethod
     def is_sha(rev: str) -> bool:

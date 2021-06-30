@@ -17,12 +17,12 @@ beautifulsoup4==4.9.3
 wget==3.2
 filelock==3.0.12
 wsgidav==3.1.0
-crc32c==2.2
+crc32c==2.2.post0
 xmltodict==0.12.0
 google-compute-engine==2.8.13
-google-cloud-storage==1.38.0
+google-cloud-storage==1.40.0
 
-urllib3==1.26.5
+urllib3==1.26.6
 
 # required by collective.checkdocs
 Pygments==2.9.0
@@ -39,7 +39,7 @@ pylint-pytest==1.0.3
 pylint-plugin-utils==0.6
 
 # type-checking
-mypy==0.902
+mypy==0.910
 types-requests
 types-paramiko
 types-tabulate

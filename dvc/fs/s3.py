@@ -146,6 +146,9 @@ class BaseS3FileSystem(ObjectFSWrapper):
     def fs(self):
         from s3fs import S3FileSystem as _S3FileSystem
 
+        _S3FileSystem.read_timeout = 1200
+        _S3FileSystem.connect_timeout = 1200
+
         return _S3FileSystem(**self.fs_args)
 
 

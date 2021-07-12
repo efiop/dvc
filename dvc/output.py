@@ -708,9 +708,7 @@ class Output:
 
         # try to load Tree from remote
         try:
-            remote = self.repo.cloud.get_remote(
-                name=kwargs.get("remote")
-            )
+            remote = self.repo.cloud.get_remote(name=kwargs.get("remote"))
         except NoRemoteError:
             return None
 
